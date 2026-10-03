@@ -18,6 +18,7 @@ import { useMcpStore } from '@/stores/useMcpStore';
 import { MobileChangesSurface } from './MobileChangesSurface';
 import { MobileFilesSurface } from './MobileFilesSurface';
 import { useEdgeSwipe } from './useEdgeSwipe';
+import { isVimEditorEventTarget } from '@/lib/editorFocus';
 
 const DRAWER_ROOT_ID = 'mobile-surface-root';
 const ENTER_DELAY_MS = 16;
@@ -31,7 +32,7 @@ export type MobileWorkspaceTab = 'changes' | 'files' | 'terminal' | 'notes' | 'm
 /** Quick MCP enable/disable toggles as a workspace pane, with its own slim
     action row (add server → settings, refresh) replacing the old fullscreen
     surface's header actions. */
-const McpWorkspacePane: React.FC<{ onOpenMcpSettings: () => void }> = ({ onOpenMcpSettings }) => {
+const McpWorkspacePane: React.FC<{ onOpenMcpSettings: () => void; active: boolean }> = ({ onOpenMcpSettings, active }) => {
   const { t } = useI18n();
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
@@ -54,7 +55,7 @@ const McpWorkspacePane: React.FC<{ onOpenMcpSettings: () => void }> = ({ onOpenM
       <div className="flex shrink-0 items-center justify-end gap-1 px-2 pt-1">
         <button
           type="button"
-          className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={onOpenMcpSettings}
           aria-label={t('settings.mcp.sidebar.actions.addServerTitle')}
           title={t('settings.mcp.sidebar.actions.addServerTitle')}
@@ -64,7 +65,7 @@ const McpWorkspacePane: React.FC<{ onOpenMcpSettings: () => void }> = ({ onOpenM
         </button>
         <button
           type="button"
-          className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={refresh}
           disabled={isRefreshing}
           aria-label={t('mcpDropdown.actions.refreshAria')}
@@ -76,7 +77,7 @@ const McpWorkspacePane: React.FC<{ onOpenMcpSettings: () => void }> = ({ onOpenM
       </div>
       <div className="min-h-0 flex-1">
         <McpDropdownContent
-          active
+          active={active}
           className="h-full"
           listClassName="max-h-none"
           hideHeader
@@ -178,7 +179,11 @@ export const MobileWorkspaceDrawer: React.FC<{
     if (variant === 'drawer') document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
       // The terminal owns Escape (it goes to the PTY) — don't hijack it.
-      if (event.key === 'Escape' && tabRef.current !== 'terminal') onCloseRef.current();
+      // The same goes for the file editor on the Vim keymap, where Escape
+      // leaves INSERT mode (hardware keyboards on tablets and phones).
+      if (event.key !== 'Escape' || tabRef.current === 'terminal') return;
+      if (isVimEditorEventTarget(event.target)) return;
+      onCloseRef.current();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
@@ -221,7 +226,7 @@ export const MobileWorkspaceDrawer: React.FC<{
         </div>
         <button
           type="button"
-          className="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t('mobile.surface.closeAria')}
           onClick={onClose}
           style={{ touchAction: 'manipulation' }}
@@ -272,7 +277,7 @@ export const MobileWorkspaceDrawer: React.FC<{
         {visitedTabs.has('mcp') ? (
           <div className={cn('h-full', tab !== 'mcp' && 'hidden')}>
             <ErrorBoundary>
-              <McpWorkspacePane onOpenMcpSettings={onOpenMcpSettings} />
+              <McpWorkspacePane active={open && tab === 'mcp'} onOpenMcpSettings={onOpenMcpSettings} />
             </ErrorBoundary>
           </div>
         ) : null}

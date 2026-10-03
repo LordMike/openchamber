@@ -1,4 +1,5 @@
 import React from 'react';
+import { isVimEditorEventTarget } from '@/lib/editorFocus';
 import { isTerminalEventTarget } from '@/lib/terminalFocus';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { activateAdjacentSessionTab, activateSessionTabByIndex, closeSessionTabAndActivateNeighbour } from '@/lib/sessionTabs';
@@ -25,6 +26,9 @@ import {
   type ShortcutActionId,
 } from '@/lib/shortcuts';
 import { ShortcutRegistry } from '@/lib/shortcuts/registry';
+import { enabledGuestSurfaces } from '@/lib/guests/surfaces';
+import { getRuntimeUrlResolver } from '@/lib/runtime-url';
+import { useGuestsStore } from '@/lib/guests/store';
 import { getVisibleContextRailSurfaces } from '@/lib/surfaces/registry';
 import { readEmbeddedThemeSearchParams } from '@/contexts/theme-embedded-bootstrap';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
@@ -36,6 +40,7 @@ import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { getCycledPrimaryAgentName } from '@/components/chat/mobileControlsUtils';
 import { focusChatInput } from '@/components/chat/composer/editor/dom';
 import {
+  addSelectionToChat,
   dismissActiveSelectionToolbar,
   getActiveSelectionToolbarVersion,
   hasActiveSelectionToolbar,
@@ -148,12 +153,11 @@ export const useKeyboardShortcuts = () => {
         || state.isSessionSwitcherOpen
         || state.isAboutDialogOpen
         || state.isTimelineDialogOpen
-        || state.isMultiRunLauncherOpen
+        || state.runOverviewKey !== null
         || state.isImagePreviewOpen;
       if (
         !state.promptNavigatorEnabled
         || state.isMobile
-        || isVSCodeRuntime()
         || hasOverlay
       ) {
         return false;
@@ -180,6 +184,8 @@ export const useKeyboardShortcuts = () => {
       if (!isVSCodeRuntime() && useUIStore.getState().sessionTabsEnabled && activateAdjacentSessionTab(1)) return;
       return navigateSessionHistory(1) ? undefined : false;
     },
+    session_history_back: (event) => navigateSessionHistoryByShortcut(event, -1),
+    session_history_forward: (event) => navigateSessionHistoryByShortcut(event, 1),
     close_session_tab: () => {
       if (isVSCodeRuntime() || !useUIStore.getState().sessionTabsEnabled) return false;
       if (currentSessionId) {
@@ -217,7 +223,7 @@ export const useKeyboardShortcuts = () => {
       const state = useUIStore.getState();
       state.setSettingsDialogOpen(!state.isSettingsDialogOpen);
     },
-    add_selection_to_chat: invokeActiveSelectionAddToChat,
+    add_selection_to_chat: () => addSelectionToChat({ focusWhenEmpty: false }),
     toggle_sidebar: () => {
       const state = useUIStore.getState();
       if (state.isMobile) state.setSessionSwitcherOpen(!state.isSessionSwitcherOpen);
@@ -317,6 +323,13 @@ export const useKeyboardShortcuts = () => {
     },
   });
 
+  function navigateSessionHistoryByShortcut(event: KeyboardEvent, delta: -1 | 1): boolean | void {
+    // An editor that already handled the chord (CodeMirror outdent/indent)
+    // keeps it.
+    if (event.defaultPrevented) return false;
+    return navigateSessionHistory(delta) ? undefined : false;
+  }
+
   function cycleFavoriteModel(delta: number): boolean | void {
     if (hasActiveBtwComposer()) return false;
     const state = useUIStore.getState();
@@ -408,6 +421,7 @@ export const useKeyboardShortcuts = () => {
         target?.closest('[role="dialog"]')
         || target?.closest('[data-btw-composer="true"]')
         || isTerminalEventTarget(target)
+        || isVimEditorEventTarget(target)
         || dropdownOpen
       ) {
         resetAbortPriming();
@@ -433,7 +447,7 @@ export const useKeyboardShortcuts = () => {
         || state.isHelpDialogOpen
         || state.isSessionSwitcherOpen
         || state.isAboutDialogOpen
-        || state.isMultiRunLauncherOpen
+        || state.runOverviewKey !== null
         || state.isImagePreviewOpen;
       if (
         hasOverlay
@@ -516,6 +530,7 @@ export const useKeyboardShortcuts = () => {
             tabs: panel?.tabs ?? [],
             linearConnected: useLinearAuthStore.getState().status?.connected === true,
             githubConnected: useGitHubAuthStore.getState().status?.connected === true,
+            extras: enabledGuestSurfaces(useGuestsStore.getState().guests, getRuntimeUrlResolver().authenticatedAsset),
           });
           const target = visibleSurfaces[switchSurfaceDigit - 1];
           if (target) {
