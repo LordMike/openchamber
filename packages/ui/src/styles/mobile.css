@@ -233,6 +233,19 @@
       padding-bottom: var(--oc-safe-area-bottom-visual) !important;
     }
 
+    /* An installed iOS PWA reports a dynamic viewport shorter than the screen,
+       which left a dead band under the composer. 100vh is the full screen
+       there. Scoped to standalone so Safari tabs and Android keep their own
+       viewport rules; the Capacitor app manages its own height. */
+    :root.device-mobile:not(.desktop-runtime):not(.oc-capacitor-app),
+    :root.device-tablet:not(.desktop-runtime):not(.oc-capacitor-app),
+    :root.mobile-pointer:not(.desktop-runtime):not(.oc-capacitor-app),
+    :root.device-mobile:not(.desktop-runtime):not(.oc-capacitor-app) body,
+    :root.device-tablet:not(.desktop-runtime):not(.oc-capacitor-app) body,
+    :root.mobile-pointer:not(.desktop-runtime):not(.oc-capacitor-app) body {
+      height: 100vh;
+    }
+
     /* Fix iOS viewport issues */
     :root.device-mobile:not(.desktop-runtime) .flex.flex-col.h-screen,
     :root.device-tablet:not(.desktop-runtime) .flex.flex-col.h-screen,
